@@ -31,10 +31,10 @@ import java.awt.event.MouseListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.io.IOException;
-import java.sql.DriverManager;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import org.h2.jdbc.JdbcConnection;
 import org.h2.util.Utils;
 
 /**
@@ -465,7 +465,7 @@ public class GUIConsole extends Console implements ActionListener, MouseListener
         }
         String url = "jdbc:h2:" + path;
         try {
-            DriverManager.getConnection(url, user, password).close();
+            new JdbcConnection(password, false).close();
             errorArea.setForeground(new Color(0, 0x99, 0));
             errorArea.setText("Database was created successfully.\n\n"
                     + "JDBC URL for H2 Console:\n"

@@ -320,6 +320,18 @@ public class DbException extends RuntimeException {
     }
 
     /**
+     * Gets an internal error.
+     *
+     * @param s the message
+     * @return the RuntimeException object
+     */
+    public static RuntimeException getInternalError(String s) {
+        RuntimeException e = new RuntimeException(s);
+        DbException.traceThrowable(e);
+        return e;
+    }
+
+    /**
      * Convert a throwable to an SQL exception using the default mapping. All
      * errors except the following are re-thrown: StackOverflowError,
      * LinkageError.

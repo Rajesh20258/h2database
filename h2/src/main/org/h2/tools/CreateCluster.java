@@ -8,8 +8,6 @@ package org.h2.tools;
 import java.io.IOException;
 import java.io.PipedReader;
 import java.io.PipedWriter;
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -17,6 +15,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import org.h2.jdbc.JdbcConnection;
 import org.h2.util.Tool;
 
 /**
@@ -100,12 +100,10 @@ public class CreateCluster extends Tool {
 
     private static void process(String urlSource, String urlTarget,
             String user, String password, String serverList) throws SQLException {
-        org.h2.Driver.load();
-
         // use cluster='' so connecting is possible
         // even if the cluster is enabled
-        try (Connection connSource = DriverManager.getConnection(urlSource + ";CLUSTER=''", user, password);
-                Statement statSource = connSource.createStatement()) {
+        try (JdbcConnection connSource = new JdbcConnection(password, false);
+             Statement statSource = connSource.createStatement()) {
             // enable the exclusive mode and close other connections,
             // so that data can't change while restoring the second database
             statSource.execute("SET EXCLUSIVE 2");
@@ -122,17 +120,16 @@ public class CreateCluster extends Tool {
             String serverList) throws SQLException {
 
         // Delete the target database first.
-        try (Connection connTarget = DriverManager.getConnection(urlTarget + ";CLUSTER=''", user, password);
-                Statement statTarget = connTarget.createStatement()) {
+        try (JdbcConnection connTarget = new JdbcConnection(password, false);
+             Statement statTarget = connTarget.createStatement()) {
             statTarget.execute("DROP ALL OBJECTS DELETE FILES");
         }
-
         try (PipedReader pipeReader = new PipedReader()) {
             Future<?> threadFuture = startWriter(pipeReader, statSource);
 
             // Read data from pipe reader, restore on target.
-            try (Connection connTarget = DriverManager.getConnection(urlTarget, user, password);
-                    Statement statTarget = connTarget.createStatement()) {
+            try (JdbcConnection connTarget = new JdbcConnection(password, false);
+                 Statement statTarget = connTarget.createStatement()) {
                 RunScript.execute(connTarget, pipeReader);
 
                 // Check if the writer encountered any exception

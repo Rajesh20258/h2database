@@ -33,6 +33,7 @@ import java.util.Properties;
 import org.h2.command.CommandInterface;
 import org.h2.engine.ConnectionInfo;
 import org.h2.engine.Constants;
+import org.h2.engine.Engine;
 import org.h2.engine.SysProperties;
 import org.h2.jdbc.JdbcConnection;
 import org.h2.jdbc.JdbcPreparedStatement;
@@ -216,7 +217,7 @@ public class PgServerThread implements Runnable {
                 info.put("USER", userName);
                 info.put("PASSWORD", password);
                 String url = "jdbc:h2:" + databaseName;
-                ConnectionInfo ci = new ConnectionInfo(url, info);
+                ConnectionInfo ci = new ConnectionInfo(url, info, userName, password);
                 String baseDir = server.getBaseDir();
                 if (baseDir == null) {
                     baseDir = SysProperties.getBaseDir();
@@ -232,10 +233,7 @@ public class PgServerThread implements Runnable {
                                 socket.getLocalAddress().getAddress(), true) //
                                 .append(':').append(socket.getLocalPort()).toString(), //
                         socket.getInetAddress().getAddress(), socket.getPort(), null));
-                conn = new JdbcConnection(ci, false);
-                // can not do this because when called inside
-                // DriverManager.getConnection, a deadlock occurs
-                // conn = DriverManager.getConnection(url, userName, password);
+               // session = Engine.createSession(ci);
                 initDb();
                 sendAuthenticationOk();
             } catch (Exception e) {

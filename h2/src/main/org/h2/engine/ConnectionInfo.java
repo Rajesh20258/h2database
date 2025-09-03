@@ -18,10 +18,8 @@ import org.h2.security.SHA256;
 import org.h2.store.fs.FilePathEncrypt;
 import org.h2.store.fs.FilePathRec;
 import org.h2.store.fs.FileUtils;
-import org.h2.util.NetworkConnectionInfo;
-import org.h2.util.SortedProperties;
-import org.h2.util.StringUtils;
-import org.h2.util.Utils;
+import org.h2.util.*;
+import org.h2.util.TimeZoneProvider;
 
 /**
  * Encapsulates the connection settings, including user name and password.
@@ -36,7 +34,7 @@ public class ConnectionInfo implements Cloneable {
     private byte[] filePasswordHash;
     private byte[] fileEncryptionKey;
     private byte[] userPasswordHash;
-
+    private static final HashSet<String> IGNORED_BY_PARSER;
     /**
      * The database name
      */
@@ -46,6 +44,7 @@ public class ConnectionInfo implements Cloneable {
     private boolean ssl;
     private boolean persistent;
     private boolean unnamed;
+    private TimeZoneProvider timeZone;
 
     private NetworkConnectionInfo networkConnectionInfo;
 
@@ -67,15 +66,26 @@ public class ConnectionInfo implements Cloneable {
      * @param u the database URL (must start with jdbc:h2:)
      * @param info the connection properties
      */
-    public ConnectionInfo(String u, Properties info) {
+    public ConnectionInfo(String u, Properties info, String user, Object password) {
         u = remapURL(u);
-        this.originalURL = u;
+        originalURL = url = u;
         if (!u.startsWith(Constants.START_URL)) {
-            throw DbException.getInvalidValueException("url", u);
+            throw getFormatException();
         }
-        this.url = u;
-        readProperties(info);
+        if (info != null) {
+            readProperties(info);
+        }
+        if (user != null) {
+            prop.put("USER", user);
+        }
+        if (password != null) {
+            prop.put("PASSWORD", password);
+        }
         readSettingsFromURL();
+        Object timeZoneName = prop.remove("TIME ZONE");
+        if (timeZoneName != null) {
+            timeZone = TimeZoneProvider.ofId(timeZoneName.toString());
+        }
         setUserName(removeProperty("USER", ""));
         name = url.substring(Constants.START_URL.length());
         parseName();
@@ -93,20 +103,54 @@ public class ConnectionInfo implements Cloneable {
     }
 
     static {
-        String[] connectionTime = { "ACCESS_MODE_DATA", "AUTOCOMMIT", "CIPHER",
-                "CREATE", "CACHE_TYPE", "FILE_LOCK", "IGNORE_UNKNOWN_SETTINGS",
-                "IFEXISTS", "INIT", "FORBID_CREATION", "PASSWORD", "RECOVER", "RECOVER_TEST",
-                "USER", "AUTO_SERVER", "AUTO_SERVER_PORT", "NO_UPGRADE",
-                "AUTO_RECONNECT", "OPEN_NEW", "PAGE_SIZE", "PASSWORD_HASH", "JMX",
-                "SCOPE_GENERATED_KEYS", "AUTHREALM", "AUTHZPWD" };
+        String[] commonSettings = { //
+                "ACCESS_MODE_DATA", "AUTO_RECONNECT", "AUTO_SERVER", "AUTO_SERVER_PORT", //
+                "CACHE_TYPE", //
+                "FILE_LOCK", //
+                "JMX", //
+                "NETWORK_TIMEOUT", //
+                "OLD_INFORMATION_SCHEMA", "OPEN_NEW", //
+                "PAGE_SIZE", //
+                "RECOVER", //
+        };
+        String[] settings = { //
+                "AUTHREALM", "AUTHZPWD", "AUTOCOMMIT", //
+                "CIPHER", "CREATE", //
+                "FORBID_CREATION", //
+                "IGNORE_UNKNOWN_SETTINGS", "IFEXISTS", "INIT", //
+                "NO_UPGRADE", //
+                "PASSWORD", "PASSWORD_HASH", //
+                "RECOVER_TEST", //
+                "USER" //
+        };
         HashSet<String> set = new HashSet<>(128);
         set.addAll(SetTypes.getTypes());
-        for (String key : connectionTime) {
-            if (!set.add(key)) {
-                DbException.throwInternalError(key);
+        for (String setting : commonSettings) {
+            if (!set.add(setting)) {
+                throw DbException.getInternalError(setting);
+            }
+        }
+        for (String setting : settings) {
+            if (!set.add(setting)) {
+                throw DbException.getInternalError(setting);
             }
         }
         KNOWN_SETTINGS = set;
+        settings = new String[] { //
+                "ASSERT", //
+                "BINARY_COLLATION", //
+                "DB_CLOSE_ON_EXIT", //
+                "PAGE_STORE", //
+                "UUID_COLLATION", //
+        };
+        set = new HashSet<>(32);
+        for (String setting : commonSettings) {
+            set.add(setting);
+        }
+        for (String setting : settings) {
+            set.add(setting);
+        }
+        IGNORED_BY_PARSER = set;
     }
 
     private static boolean isKnownSetting(String s) {
