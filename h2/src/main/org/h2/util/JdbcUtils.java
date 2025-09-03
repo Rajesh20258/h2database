@@ -20,7 +20,6 @@ import javax.sql.DataSource;
 import org.h2.api.CustomDataTypesHandler;
 import org.h2.api.ErrorCode;
 import org.h2.api.JavaObjectSerializer;
-import org.h2.engine.Constants;
 import org.h2.engine.SysProperties;
 import org.h2.jdbc.JdbcConnection;
 import org.h2.message.DbException;
@@ -266,61 +265,14 @@ public class JdbcUtils {
      */
     public static Connection getConnection(String driver, String url,
             String user, String password) throws SQLException {
-
-        return getConnection(driver, url, user, password, null, false);
-    }
-
-    public static Connection getConnection(String driver, String url, String user, String password,
-                                           NetworkConnectionInfo networkConnectionInfo, boolean forbidCreation) throws SQLException {
-        if (url.startsWith(Constants.START_URL)) {
-            JdbcConnection connection = new JdbcConnection(password, forbidCreation);
-            if (networkConnectionInfo != null) {
-                connection.getSession().setNetworkConnectionInfo(networkConnectionInfo);
-            }
-            return connection;
+        Properties prop = new Properties();
+        if (user != null) {
+            prop.setProperty("user", user);
         }
-        if (StringUtils.isNullOrEmpty(driver)) {
-            JdbcUtils.load(url);
-        } else {
-            Class<?> d = loadUserClass(driver);
-            try {
-                if (java.sql.Driver.class.isAssignableFrom(d)) {
-                    Driver driverInstance = (Driver) d.getDeclaredConstructor().newInstance();
-                    Properties prop = new Properties();
-                    if (user != null) {
-                        prop.setProperty("user", user);
-                    }
-                    if (password != null) {
-                        prop.setProperty("password", password);
-                    }
-                    /*
-                     * fix issue #695 with drivers with the same jdbc
-                     * subprotocol in classpath of jdbc drivers (as example
-                     * redshift and postgresql drivers)
-                     */
-                    Connection connection = driverInstance.connect(url, prop);
-                    if (connection != null) {
-                        return connection;
-                    }
-                    throw new SQLException("Driver " + driver + " is not suitable for " + url, "08001");
-                } else if (javax.naming.Context.class.isAssignableFrom(d)) {
-                    if (!url.startsWith("java:")) {
-                        throw new SQLException("Only java scheme is supported for JNDI lookups", "08001");
-                    }
-                    // JNDI context
-                    Context context = (Context) d.getDeclaredConstructor().newInstance();
-                    DataSource ds = (DataSource) context.lookup(url);
-                    if (StringUtils.isNullOrEmpty(user) && StringUtils.isNullOrEmpty(password)) {
-                        return ds.getConnection();
-                    }
-                    return ds.getConnection(user, password);
-                }
-            } catch (Exception e) {
-                throw DbException.toSQLException(e);
-            }
-            // don't know, but maybe it loaded a JDBC Driver
+        if (password != null) {
+            prop.setProperty("password", password);
         }
-        return DriverManager.getConnection(url, user, password);
+        return getConnection(driver, url, prop, null);
     }
 
     /**

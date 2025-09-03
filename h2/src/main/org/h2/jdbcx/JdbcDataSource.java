@@ -157,8 +157,8 @@ public class JdbcDataSource extends TraceObject implements XADataSource,
     @Override
     public Connection getConnection() throws SQLException {
         debugCodeCall("getConnection");
-
-        return new JdbcConnection(StringUtils.cloneCharArray(passwordChars), false);
+        return getJdbcConnection(userName,
+                StringUtils.cloneCharArray(passwordChars));
     }
 
     /**
@@ -175,8 +175,7 @@ public class JdbcDataSource extends TraceObject implements XADataSource,
         if (isDebugEnabled()) {
             debugCode("getConnection("+quote(user)+", \"\");");
         }
-        //return getJdbcConnection(user, convertToCharArray(password));
-        return new JdbcConnection(password, false);
+        return getJdbcConnection(user, convertToCharArray(password));
     }
 
     private JdbcConnection getJdbcConnection(String user, char[] password)
@@ -349,8 +348,9 @@ public class JdbcDataSource extends TraceObject implements XADataSource,
     @Override
     public XAConnection getXAConnection() throws SQLException {
         debugCodeCall("getXAConnection");
-        return new JdbcXAConnection(factory, getNextId(XA_DATA_SOURCE),
-                new JdbcConnection(StringUtils.cloneCharArray(passwordChars), false));
+        int id = getNextId(XA_DATA_SOURCE);
+        return new JdbcXAConnection(factory, id, getJdbcConnection(userName,
+                StringUtils.cloneCharArray(passwordChars)));
     }
 
     /**
@@ -368,8 +368,8 @@ public class JdbcDataSource extends TraceObject implements XADataSource,
             debugCode("getXAConnection("+quote(user)+", \"\");");
         }
         int id = getNextId(XA_DATA_SOURCE);
-        return new JdbcXAConnection(factory, getNextId(XA_DATA_SOURCE),
-                new JdbcConnection(password, false));
+        return new JdbcXAConnection(factory, id, getJdbcConnection(user,
+                convertToCharArray(password)));
     }
 
     /**
